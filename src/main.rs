@@ -1,5 +1,6 @@
 use std::{
-    fs::{self, create_dir_all},
+    fs::{self, create_dir_all, File},
+    io::{Read, Write},
     path::PathBuf,
 };
 
@@ -100,9 +101,7 @@ fn cli_identity(command: &IdentityCommands) {
         IdentityCommands::Pubkey { name } => cli_identity_pubkey(name),
         IdentityCommands::Keygen { name } => cli_identity_keygen(name),
         IdentityCommands::Import { name, file } => cli_identity_import(name, file),
-        IdentityCommands::Delete { name } => {
-            todo!()
-        }
+        IdentityCommands::Delete { name } => cli_identity_delete(name),
     }
 }
 
@@ -237,7 +236,6 @@ fn cli_identity_keygen(name: &str) {
 
     let identity = age::x25519::Identity::generate();
     let pubkey = identity.to_public();
-    let created = humantime::format_rfc3339_millis(std::time::SystemTime::now());
 
     let mut identity_file = std::fs::File::options()
         .create_new(true)
@@ -245,18 +243,14 @@ fn cli_identity_keygen(name: &str) {
         .open(identity_path)
         .expect("create new identity file");
 
-    use std::io::Write;
-
     let pubkey_string = pubkey.to_string();
 
-    write!(identity_file, "# created: {}\n", created).unwrap();
-    write!(identity_file, "# public key: {}\n", pubkey_string).unwrap();
     write!(identity_file, "{}\n", identity.to_string().expose_secret()).unwrap();
 
     println!("{}", pubkey_string);
 }
 
-fn cli_identity_import(name: &str, file: &str) {
+fn cli_identity_import(name: &str, file_path: &str) {
     initialize_config();
 
     let home_dir = dirs::home_dir().expect("user's home directory");
@@ -267,13 +261,52 @@ fn cli_identity_import(name: &str, file: &str) {
         panic!("identity already exists");
     }
 
-    if file == "-" {
-        todo!()
+    let mut buffer = vec![];
+
+    if file_path == "-" {
+        std::io::stdin()
+            .read_to_end(&mut buffer)
+            .expect("read from stdin");
     } else {
-        // let identity_file =
-        //     age::IdentityFile::from_file(file.to_string()).expect("age identity file");
-        todo!()
+        File::options()
+            .read(true)
+            .open(file_path)
+            .expect("identity file")
+            .read_to_end(&mut buffer)
+            .expect("read from identity file");
     }
+
+    match age::IdentityFile::from_buffer(buffer.as_slice()) {
+        Ok(identity_file) => {
+            let identities = identity_file.into_identities();
+
+            assert!(identities.len() == 1, "multiple identities not supported");
+
+            match &identities[0] {
+                age::IdentityFileEntry::Native(identity) => {
+                    // XXX: Problem with this is you lose any comments attached
+                    // to the identity file. Instead of writing the parsed
+                    // identity, construct `IdentityFile` only to validate those
+                    // bytes before copying them
+
+                    File::options()
+                        .create_new(true)
+                        .write(true)
+                        .open(&identity_path)
+                        .expect("create new identity file")
+                        .write_all(identity.to_string().expose_secret().as_bytes())
+                        .expect("write new identity file");
+                }
+            }
+        }
+        Err(_) => {
+            println!("not a valid identity file");
+        }
+    }
+}
+
+fn cli_identity_delete(name: &str) {
+    todo!()
 }
 
 fn initialize_config() {

@@ -1,0 +1,12 @@
+[package]
+name = "rops"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+age = { version = "0.9.2", features = ["ssh"] }
+clap = { version = "4.3.19", features = ["derive"] }
+dirs = "5.0.1"
+humantime = "2.1.0"

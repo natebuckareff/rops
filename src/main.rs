@@ -306,7 +306,15 @@ fn cli_identity_import(name: &str, file_path: &str) {
 }
 
 fn cli_identity_delete(name: &str) {
-    todo!()
+    let home_dir = dirs::home_dir().expect("user's home directory");
+    let identity_dir = home_dir.join(".config/rops/identities");
+    let identity_path = identity_dir.join(name);
+
+    if !identity_path.exists() {
+        panic!("identity not found");
+    }
+
+    std::fs::remove_file(identity_path).expect("deleted identity file");
 }
 
 fn initialize_config() {
